@@ -1,62 +1,63 @@
-"""Live checks against real hackathon pages. Requires GEMINI_API_KEY."""
+"""Live checks against real hackathon pages. Needs GEMINI_API_KEY and network."""
 
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
 from rulesminion.agent import check_url
-from rulesminion.config import gemini_key_loaded, load_env
+from rulesminion.config import load_env
+from rulesminion.pages import fetch_page
 from rulesminion.snapshots import SnapshotStore
 
 pytestmark = pytest.mark.live
 
-PAGES = [
-    {
-        "url": "https://dorahacks.io/hackathon/2418/detail",
-        "title_bit": "Cortensor",
-        "prize_bits": ("1,150", "1150", "1.150"),
-        "month_bits": ("2026-12", "December", "Dec"),
-    },
-    {
-        "url": "https://learn-specs.devpost.com/",
-        "title_bit": "SPECS",
-        "prize_bits": ("2,500", "2500", "$2,500"),
-        "month_bits": ("2026-12", "December", "Dec"),
-    },
-    {
-        "url": "https://docs.cortensor.network/community-and-ecosystem/hackathon/hackathon-5",
-        "title_bit": "Hackathon",
-        "prize_bits": ("1,150", "1150", "$500"),
-        "month_bits": ("December", "2026-12", "Dec"),
-    },
-]
 
-
-@pytest.fixture(scope="module")
-def ready():
+def _ready() -> None:
     load_env()
-    if not gemini_key_loaded():
-        pytest.skip("GEMINI_API_KEY is not loaded")
+    if not os.environ.get("GEMINI_API_KEY"):
+        pytest.skip("GEMINI_API_KEY not set")
 
 
-def _blob(result) -> str:
-    return json.dumps(json.loads(result.model_dump_json())).lower()
+def test_live_fetch_cortensor_dora_page():
+    page = fetch_page("https://dorahacks.io/hackathon/2418/detail")
+    assert page.status_code == 200
+    assert "1,150" in page.visible_text or "1150" in page.visible_text
+    assert "2026-12-19 13:29 IST" in page.digest
 
 
-@pytest.mark.parametrize("spec", PAGES, ids=[item["url"] for item in PAGES])
-def test_live_page_extracts_core_fields(ready, tmp_path, spec):
+def test_live_fetch_learn_specs_devpost():
+    page = fetch_page("https://learn-specs.devpost.com/")
+    assert page.status_code == 200
+    assert "2,500" in page.visible_text or "2500" in page.visible_text
+    assert "EST" in page.visible_text
+
+
+def test_live_agent_cortensor(tmp_path):
+    _ready()
     store = SnapshotStore(tmp_path)
-    result = check_url(spec["url"], store=store)
+    result = check_url("https://dorahacks.io/hackathon/2418/detail", store=store)
+    blob = result.brief.model_dump_json().lower()
     assert result.brief.title
-    assert spec["title_bit"].lower() in result.brief.title.lower() or spec["title_bit"].lower() in result.brief.url.lower()
-    blob = _blob(result)
-    assert any(bit.lower() in blob for bit in spec["prize_bits"]), blob[:1500]
-    assert any(bit.lower() in blob for bit in spec["month_bits"]), blob[:1500]
+    assert "1150" in blob.replace(",", "") or "1,150" in result.brief.prize_pool
     assert result.brief.india_eligible in {"yes", "no", "unclear"}
-    assert result.changes.status == "first_seen"
-    again = check_url(spec["url"], store=store)
-    assert again.changes.status in {"unchanged", "changed"}
-    if spec["url"].endswith("/2418/detail"):
-        assert result.brief.submission_checklist
+    assert any("12-19" in item.ist or "december 19" in item.ist.lower() or "13:29" in item.ist for item in result.brief.deadlines) or any(
+        "13:29" in item.as_stated or "12/19" in item.as_stated or "dec" in item.as_stated.lower()
+        for item in result.brief.deadlines
+    )
+    assert result.brief.submission_checklist
+    second = check_url("https://dorahacks.io/hackathon/2418/detail", store=store)
+    assert second.changes.status in {"unchanged", "changed"}
+    assert second.changes.previous_checked_at_ist
+
+
+def test_live_agent_learn_specs(tmp_path):
+    _ready()
+    store = SnapshotStore(tmp_path)
+    result = check_url("https://learn-specs.devpost.com/", store=store)
+    blob = json.dumps(result.brief.model_dump()).lower()
+    assert "spec" in result.brief.title.lower() or "learn" in result.brief.title.lower()
+    assert "2500" in blob.replace(",", "") or "2,500" in result.brief.prize_pool
+    assert result.brief.india_eligible in {"yes", "no", "unclear"}

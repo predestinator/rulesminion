@@ -16,14 +16,7 @@ COMPARE_SCALARS = (
     "title",
     "organizer",
     "format",
-    "prize_pool",
     "india_eligible",
-    "eligibility_summary",
-)
-COMPARE_LISTS = (
-    "prizes",
-    "deadlines",
-    "submission_checklist",
 )
 
 
@@ -119,20 +112,43 @@ def diff_briefs(
     curr_dump = json.loads(current.model_dump_json())
 
     for field in COMPARE_SCALARS:
-        before = _norm(prev_dump.get(field))
-        after = _norm(curr_dump.get(field))
+        before = _norm_key(prev_dump.get(field))
+        after = _norm_key(curr_dump.get(field))
         if before != after:
-            changed.append(ChangeItem(path=field, before=before or None, after=after or None))
+            changed.append(
+                ChangeItem(
+                    path=field,
+                    before=_norm(prev_dump.get(field)) or None,
+                    after=_norm(curr_dump.get(field)) or None,
+                )
+            )
 
-    for field in COMPARE_LISTS:
-        before_items = [_norm(item) for item in prev_dump.get(field) or [] if _norm(item)]
-        after_items = [_norm(item) for item in curr_dump.get(field) or [] if _norm(item)]
-        for item in after_items:
-            if item not in before_items:
-                added.append(f"{field}: {item}")
-        for item in before_items:
-            if item not in after_items:
-                removed.append(f"{field}: {item}")
+    before_pool = _norm_money(prev_dump.get("prize_pool"))
+    after_pool = _norm_money(curr_dump.get("prize_pool"))
+    if before_pool != after_pool:
+        changed.append(
+            ChangeItem(
+                path="prize_pool",
+                before=_norm(prev_dump.get("prize_pool")) or None,
+                after=_norm(curr_dump.get("prize_pool")) or None,
+            )
+        )
+
+    _list_diff(added, removed, "prizes", _prize_keys(prev_dump.get("prizes")), _prize_keys(curr_dump.get("prizes")))
+    _list_diff(
+        added,
+        removed,
+        "deadlines",
+        _deadline_keys(prev_dump.get("deadlines")),
+        _deadline_keys(curr_dump.get("deadlines")),
+    )
+    _list_diff(
+        added,
+        removed,
+        "submission_checklist",
+        [_norm_key(item) for item in prev_dump.get("submission_checklist") or [] if _norm_key(item)],
+        [_norm_key(item) for item in curr_dump.get("submission_checklist") or [] if _norm_key(item)],
+    )
 
     if not added and not removed and not changed:
         return ChangeReport(
@@ -156,6 +172,46 @@ def diff_briefs(
         changed=changed,
         summary="; ".join(parts) + ".",
     )
+
+
+def _list_diff(added: list[str], removed: list[str], field: str, before_items: list[str], after_items: list[str]) -> None:
+    for item in after_items:
+        if item not in before_items:
+            added.append(f"{field}: {item}")
+    for item in before_items:
+        if item not in after_items:
+            removed.append(f"{field}: {item}")
+
+
+def _norm_key(value: Any) -> str:
+    return " ".join(_norm(value).lower().replace(".", " ").split())
+
+
+def _norm_money(value: Any) -> str:
+    text = _norm_key(value)
+    for char in "$€£₹,":
+        text = text.replace(char, "")
+    return " ".join(text.split())
+
+
+def _prize_keys(items: Any) -> list[str]:
+    keys: list[str] = []
+    for item in items or []:
+        if isinstance(item, dict):
+            keys.append(f"{_norm_key(item.get('place'))}|{_norm_money(item.get('amount'))}")
+        else:
+            keys.append(_norm_money(item))
+    return [key for key in keys if key not in {"", "|"}]
+
+
+def _deadline_keys(items: Any) -> list[str]:
+    keys: list[str] = []
+    for item in items or []:
+        if isinstance(item, dict):
+            keys.append(_norm_key(item.get("ist") or item.get("as_stated") or ""))
+        else:
+            keys.append(_norm_key(item))
+    return [key for key in keys if key]
 
 
 def _norm(value: Any) -> str:

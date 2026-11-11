@@ -1,0 +1,96 @@
+{
+  "brief": {
+    "title": "Cortensor Hackathon #5",
+    "url": "https://dorahacks.io/hackathon/2418/detail",
+    "organizer": "Cortensor",
+    "format": "online",
+    "prize_pool": "1,150 USD",
+    "prizes": [
+      {
+        "place": "1st place",
+        "amount": "$500 total",
+        "notes": "$250 liquid $COR upfront; $250 in a one-month staking lock."
+      },
+      {
+        "place": "2nd place",
+        "amount": "$300 total",
+        "notes": "$150 liquid $COR upfront; $150 in a one-month staking lock."
+      },
+      {
+        "place": "3rd place",
+        "amount": "$200 total",
+        "notes": "$100 liquid $COR upfront; $100 in a one-month staking lock."
+      },
+      {
+        "place": "4th place",
+        "amount": "$100 total",
+        "notes": "$50 liquid $COR upfront; $50 in a one-month staking lock."
+      },
+      {
+        "place": "5th place",
+        "amount": "$50 total",
+        "notes": "$25 liquid $COR upfront; $25 in a one-month staking lock."
+      }
+    ],
+    "deadlines": [
+      {
+        "label": "Kickoff",
+        "as_stated": "October 16, 2026",
+        "timezone_as_stated": "Pacific Time",
+        "ist": "2026-10-16 12:30 IST",
+        "confidence": "high"
+      },
+      {
+        "label": "Submission Deadline",
+        "as_stated": "2026/12/19 07:59 (UTC)",
+        "timezone_as_stated": "UTC",
+        "ist": "2026-12-19 13:29 IST",
+        "confidence": "high"
+      }
+    ],
+    "india_eligible": "yes",
+    "eligibility_summary": "The hackathon is held virtually and open to global participants.",
+    "eligibility_evidence": "Virtual event venue form with no geographic restrictions noted in the rules.",
+    "submission_checklist": [
+      "A public source repository and README with setup and run instructions.",
+      "A short explanation of the OpenMinion SDK workflow.",
+      "One working example and a 1\u20135 minute demo video.",
+      "A Building Blocks Tested note: what you used, what worked, and what did not.",
+      "A What We Learned note with actionable product feedback."
+    ],
+    "notes": [
+      "Build a small, working agent with the OpenMinion 0.1 Python SDK.",
+      "Prizes are stated in USD value and paid in $COR equivalent with a 50% upfront liquid distribution and a 50% one-month staking lock."
+    ]
+  },
+  "changes": {
+    "status": "changed",
+    "previous_checked_at_ist": "2026-11-11 22:07 IST",
+    "added": [
+      "deadlines: label=Submission Deadline | as_stated=2026/12/19 07:59 (UTC) | timezone_as_stated=UTC | ist=2026-12-19 13:29 IST"
+    ],
+    "removed": [
+      "deadlines: label=Submission deadline | as_stated=2026/12/19 07:59 (UTC) | timezone_as_stated=UTC | ist=2026-12-19 13:29 IST"
+    ],
+    "changed": [
+      {
+        "path": "prize_pool",
+        "before": "$1,150 USD",
+        "after": "1,150 USD"
+      },
+      {
+        "path": "eligibility_summary",
+        "before": "Online virtual hackathon open to builders globally.",
+        "after": "The hackathon is held virtually and open to global participants."
+      }
+    ],
+    "summary": "2 field(s) changed; 1 item(s) added; 1 item(s) removed."
+  },
+  "snapshot_id": "30d5de984dfae999-003-2026-11-11_2213_IST",
+  "checked_at_ist": "2026-11-11 22:13 IST",
+  "extractor": "openminion",
+  "session_id": "rulesminion-30d5de984dfae999-1794415401",
+  "elapsed_ms": 12412,
+  "page_title": "",
+  "warnings": []
+}

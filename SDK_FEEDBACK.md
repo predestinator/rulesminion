@@ -1,129 +1,114 @@
 # Building Blocks Tested and What We Learned
 
-OpenMinion `0.1.20`, Python 3.13, Gemini `gemini-flash-lite-latest` through the OpenAI-compatible adapter at `https://generativelanguage.googleapis.com/v1beta/openai/`. Credential via `GEMINI_API_KEY` only; nothing secret is checked in.
+RulesMinion was built against OpenMinion `0.1.20` on Python 3.13, using Gemini `gemini-flash-lite-latest` through the OpenAI-compatible Gemini endpoint configured as the `openai` provider (`api_key_env=GEMINI_API_KEY`, `base_url=https://generativelanguage.googleapis.com/v1beta/openai/`). We did not have Cortensor Portal or Gemma4 access.
 
-RulesMinion is a documentation / monitoring style agent: read a hackathon page, extract a typed brief, snapshot it, and say what changed. That is close to the “research brief” and “monitoring agent” ideas in the Hackathon #5 brief.
+This note is the hackathon's required "Building Blocks Tested" and "What We Learned" write-up.
 
 ## Building blocks tested
 
 | Block | How we used it | Result |
 | --- | --- | --- |
-| Agent execution | `Agent` context manager and `agent.run(..., timeout_seconds=180)` | Works once a first tool call succeeds. |
-| Models | Gemini Flash Lite Latest via `providers.openai` + `api_key_env=GEMINI_API_KEY` | Good at extraction when it sees a live digest. Weak at emitting a valid entry `task_update`. |
-| Tools | `@tool` on `fetch_hackathon_page`, `recall_previous_snapshot`, `mark_digest_ready` | Decorator and READ_ONLY / idempotent flags work. See tool-forcing bugs below. |
-| Permissions | Default `action_policy.mode=auto` with `default_action=require_confirm`; `approval_callback(name, args, reason) -> bool` | READ_ONLY tools do not prompt. We still pass a callback so a future write tool would not hang a headless run. |
-| Sessions | Unique `session_id` per check (`rulesminion-{urlhash}-{unix}`) | Sessions persist in the local SQLite store. Reusing a session for a short new prompt was not needed after we switched to unique IDs. |
-| Memory | Default `runtime.memory_enabled=true`; we also store our own snapshot files | Smoke-test metadata showed `memory_enabled=true` and an envelope being built. We do not rely on it for diffs. |
-| Tasks / task context | Implicit: every entry turn must attach a `task_update` sidecar | This is the main friction. Documented below with reproductions. |
-| Freshness / diagnostics | `result.metadata` (`tool_calls_count`, `elapsed_ms`, `llm_call_counts_by_purpose`, `respond_kind`) | Useful. A freshness classifier also blocked one date-heavy turn when no tool had run. |
-| Structured output | `output_type=Review` (two strings) vs `output_type=HackathonBrief` (nested lists) | Simple schema plus a working forced tool parsed JSON out of markdown fences. Nested schema plus a failing first tool returned the canned task-update message and raised `AgentOutputValidationError`. We now parse JSON from `result.text` ourselves. |
+| Agent execution | `Agent(...)` as a context manager, then `agent.run(...)` | Works when the first step is a forced tool call |
+| Models | Gemini Flash Lite via the OpenAI-compatible adapter | Works for tool use + JSON; weak at emitting OpenMinion's `task_update` sidecar |
+| Tools | `@tool` on `fetch_hackathon_page` and `recall_previous_snapshot` | Works. `min_scope="READ_ONLY"` plus `idempotent=True` avoided approval prompts |
+| Structured output | `output_type=HackathonBrief` (Pydantic) | Works **only** when combined with `forced_tools`. Parses JSON even when wrapped in `openminion:` prose and a markdown fence |
+| Permissions / action policy | Default `action_policy.mode=auto` with `default_action=require_confirm` | Read-only tools ran without a prompt. We still passed an `approval_callback` that allowlists our two tools in case a write or unknown tool appears |
+| Sessions | `session_id="rulesminion-<urlhash>-<unix>"` | Sessions persist (we saw leftover rows in `.openminion/state/openminion.db`). We mint a **new** session id per check to avoid the task-context failure below |
+| Memory | Left enabled in the default runtime (`memory_enabled: true`) | The runtime built a memory envelope on our turns (`memory_context_reason=built`). We did not rely on it; snapshots are our durable memory |
+| Tasks / task context | Implicit — OpenMinion injects `task_update` into the entry tool | **Broke** text-only and structured-output-only runs on Gemini |
+| Diagnostics | `result.metadata` (`tool_calls_count`, `respond_kind`, `elapsed_ms`, `llm_call_counts_by_purpose`) and `openminion doctor` | Useful once you know to look there. A failed "ping" still reported `run_state=completed` |
+| Skills, delegation, Portal, Gemma4 | Not used | Out of scope for this agent |
 
-Portal and Gemma4 were not tested; we do not have that access. Participants without access are not penalized per the official page.
+## What we actually shipped
+
+The path that survived contact with Gemini is slightly different from the first design:
+
+1. RulesMinion fetches the page in process (so a 4,000-character tool-result clip or a failed forced `fetch_hackathon_page` cannot starve the model).
+2. The Agent still has to make a tool call, because a text-only or `output_type`-only turn dies on the task-context clarify below. We force a tiny `mark_digest_ready` tool and also register `fetch_hackathon_page`.
+3. We parse JSON out of `result.text` (often prefixed with `openminion:` and a markdown fence). A smoke test showed `output_type=HackathonBrief` *does* work when paired with a forced tool; the shipped loop keeps the text parser as a safety net and retries a JSON-only rewrite if the first reply is prose.
+4. Repeat checks mint a fresh `session_id`. Snapshot diffs compare material fields (pool, prize place+amount, IST deadlines, India flag, checklist) so a paraphrase of `eligibility_summary` is not reported as a page change.
+5. Free-tier Gemini returned HTTP 429 on a fourth extract in one sitting. `_run_agent` now retries rate limits with a short backoff.
+
 
 ## What worked
 
-1. The public recipe in `examples/sdk/tool_agent.py` works on this setup. `forced_tools=["lookup_order"]` called the tool and returned “Order A-104 is currently ready” in about 30 seconds.
+1. The public Python API matches the examples in `examples/sdk/`. `from openminion import Agent, tool, ProviderError, AgentOutputValidationError` is the right import surface (it is lazy; `dir(openminion)` right after import does not list these names).
+2. Reproducing `examples/sdk/tool_agent.py` succeeded on the first try: forced `lookup_order`, Gemini answered "Order A-104 is currently ready." (~30s).
+3. Combining a forced tool with `output_type` produced a valid Pydantic object. The model replied with fenced JSON prefixed `openminion:`; OpenMinion still validated it.
+4. Marking tools `READ_ONLY` and `idempotent` kept the default confirm-on-write policy out of the way. That is the right default for a fetch tool.
+5. JSON-LD and DoraHacks `__NUXT_DATA__` are sitting in the HTML. Feeding those to the model (with IST already computed) made deadline extraction much more reliable than hoping the LLM parses "2026/12/19 07:59" plus a tiny "(UTC)" label.
 
-2. `examples/sdk/structured_output.py`’s shape also works if a trivial tool is forced first. With `note_tests` forced and `output_type=Review`, Gemini returned fenced JSON and OpenMinion parsed it (`decision='approve'`). That run took 64 seconds.
+## What broke
 
-3. `@tool(min_scope="READ_ONLY", idempotent=True)` is a clear API. Our fetch function is a normal Python function with a docstring; the SDK exposes it.
+### 1. Text-only `Agent.run()` fails on Gemini with a task-context clarify
 
-4. `AgentRunResult.metadata` is detailed enough to debug a failed turn: `tool_calls_count=0`, `llm_call_counts_by_purpose={"entry":1,"freshness_classify":1,"reflect":1}`, `elapsed_ms`, `brain_status`.
+**Environment:** OpenMinion 0.1.20, `gemini-flash-lite-latest`, fresh `session_id`.
 
-5. Application-owned `APIRuntime` / `config_path` let us pin the project-local `agents.json` without guessing `~/.openminion`.
-
-6. Once a live digest is in the user message and `mark_digest_ready` is forced, Gemini extracts prizes, IST deadlines, India eligibility, and checklists well enough to be useful. Real results:
-
-   - Cortensor on DoraHacks: pool $1,150 USD; 1st–5th $500/$300/$200/$100/$50; submission **2026-12-19 13:29 IST** from `2026/12/19 07:59 UTC`; India yes; five-item official checklist.
-   - Learn AR with SPECS: pool $2,500; places $1,250/$750/$500; submission **2026-12-08 03:30 IST** from `Dec 7, 2026 @ 5:00pm EST`; India yes (all countries except standard exceptions).
-   - Official docs page: same prize table and the documented submission checklist.
-
-## What did not work
-
-### 1. A plain text `Agent.run()` can fail the task-context protocol
-
-Reproduction:
+**Steps:**
 
 ```python
+from openminion import Agent
+
 with Agent(
-    config_path=str(AGENTS_JSON),
+    config_path=".openminion/agents.json",
     agent_id="openminion",
     instructions="Reply with exactly the single word pong and nothing else.",
     session_id="rulesminion-smoke",
 ) as agent:
     result = agent.run("ping", timeout_seconds=120)
+print(result.text)
 ```
 
-Expected (from `docs/task-context.md`): a first non-clarification response may omit `task_update`; the runtime keeps the original input as a verbatim objective.
+**Expected:** a model reply, ideally `pong`.
 
-Actual: `result.text` is
+**Actual:** `run_state=completed`, `result.text` =
 
-`openminion: I could not safely update the task conditions. Please restate the current task and its required conditions.`
+```
+openminion: I could not safely update the task conditions. Please restate the current task and its required conditions.
+```
 
-`tool_calls_count` was 0. `llm_calls_count` was 1 (`entry`). `elapsed_ms` was about 30,243. The same canned string is raised from `resolve_entry_task_update` in `openminion/modules/brain/loop/context/task_entry.py` when validation raises `ValueError`.
+Metadata from that turn: `tool_calls_count=0`, `llm_calls_count=1`, purpose `entry` only, `model=brain-orchestrator`, `respond_kind=assistant`, about 10.8k tokens used for the word "ping".
 
-This was a fresh session, not leftover state. An earlier leftover `t1` session from the official tool example had completed successfully.
+The same canned message is returned for `output_type=SomeModel` with no tools, and then `AgentOutputValidationError` fires because that sentence is not valid schema JSON.
 
-### 2. `forced_tools=["fetch_hackathon_page"]` did not invoke the tool
+**Why (from reading the runtime):** `openminion/modules/brain/loop/context/task_entry.py` requires a valid `task_update` sidecar on the entry tool in several cases. If the model returns plain text (or a malformed `task_update`), `resolve_entry_task_update` raises `ValueError` and the user sees the clarify string above. A first tool-using turn can skip this because the tool call gives the runtime something to attach `task_update` to — or because `forced_tools` changes the entry path.
 
-We expected `forced_tools` to make the first step a real HTTP fetch. Across several sessions (short and long instructions, with and without `output_type=HackathonBrief`, alone or next to `recall_previous_snapshot`) the turn ended in 5–27 seconds with `tool_calls_count=0` and the same canned task-update message.
+**Workaround we shipped:** always pass `tools=[...]` and `forced_tools=["fetch_hackathon_page"]`, and use a fresh `session_id` per check. Do not reuse a session for a later, unrelated prompt if you need the run to succeed on Gemini.
 
-The fetch function itself works when called from Python: it returns a ~10k character digest that already includes `1,150` and `2026-12-19 13:29 IST`.
+**Suggested product fix:** if the model returns plain text on a brand-new session with no `task_update`, fall back to the documented compatibility path (verbatim objective) instead of failing the turn. Surface `reason_code=invalid_task_context_update` in `result.text` less often; it currently masquerades as a successful assistant message.
 
-Trivial forced tools on the same runtime *do* run: `lookup_order`, `note_tests`, and `mark_digest_ready`. So this is not “Gemini cannot call tools.” It looks like the entry/orchestrator step sometimes fails `task_update` validation *before* the forced user tool is executed, and that failure is not retried.
+### 2. Default tool results are truncated at 4,000 characters
 
-A later date-heavy turn without a live tool result also returned a freshness refusal:
+`runtime.agent_loop_tool_result_max_chars` defaults to `4000`. A cleaned Cortensor DoraHacks page is ~8k characters; the detailed prize tiers and the official submission checklist sit after that cutoff. We raised the local value to `20,000` and also put structured metadata *first* in the digest.
 
-`I couldn't provide a grounded current general answer because Missing live-data evidence for a freshness-sensitive answer.; Missing exact-date evidence for an exact-date freshness answer.`
+**Suggestion:** document this limit next to `@tool`, or raise the default for read-only fetch tools. Silently clipping a tool result is a quiet accuracy bug.
 
-That is reasonable policy *if* no page was fetched. It is a dead end when `forced_tools` did not run.
+### 3. `result.text` is console-rendered
 
-### 3. Nested `output_type` plus a failed first tool raises `AgentOutputValidationError`
+Successful answers arrive as `openminion: …`. That is fine for a terminal, easy to miss when you parse `result.text` yourself. Prefer `result.output` when `output_type` is set. We still keep a JSON-repair helper for the fenced-prose case.
 
-`output_type=HackathonBrief` with no successful tool produced the canned sentence, which is not valid `HackathonBrief` JSON. OpenMinion then raised `AgentOutputValidationError`. The SDK docs say 0.1.x accepts schema-valid JSON wrapped in provider prose; that path works (see the `Review` run) only when the model actually answers.
+### 4. Config and process surprises
 
-We now treat `result.text` as prose and parse the first JSON object ourselves. That matches what at least one other Hackathon #5 project reported independently.
+- Gemini is configured as provider id `openai` plus a `gemini` model connection. It works, but `doctor` output saying `provider=openai` / `model=brain-orchestrator` is confusing when the actual network call is Gemini.
+- `daemon_auto_start: true` and `process_mode: "daemon"` mean the first `Agent()` can take several seconds while local state databases come up. Subsequent calls in the same process are faster; each full extract still took ~30–90s.
+- Default `gateway.api_turn_timeout_seconds` is 45 and `chat_turn_timeout_seconds` is 90. A structured extract regularly exceeded 45s. We passed `timeout_seconds=180` into `Agent.run` and raised the local config values.
+- `import openminion` followed by `dir(openminion)` does not show `Agent` or `tool` until first attribute access. Harmless, but it looks like the package exported nothing.
 
-### 4. Default `agent_loop_tool_result_max_chars` is 4000
+### 5. Default action policy will pause write tools
 
-Cortensor’s cleaned visible text is about 8,100 characters; the useful checklist and “December 18” language sit past the first 4,000. We raised the local config to 20,000 and also put JSON-LD / NUXT timestamps at the top of the digest. This limit should be documented next to `@tool` examples, or the default should be higher for research-style tools.
+`default_action=require_confirm` is correct for a desktop agent and a trap for a headless one. A `save_snapshot` write tool would have stopped the run with a policy prompt (`respond_kind=policy_confirmation_prompt` in the SDK docs). We kept writes in application code and left the fetch tool read-only. If you need the model to write, pass `approval_callback` or set `action_policy.mode=bypass` on that agent only.
 
-### 5. Console-rendered replies
+## What we learned (actionable)
 
-Every `result.text` we saw is prefixed with `openminion: `. Fine for a terminal, easy to trip a strict JSON parser. The repair helper strips fences and takes the first `{...}`.
+1. **Treat `forced_tools` as part of the Gemini compatibility story**, not just a demo trick. A Getting Started note that says "if `Agent.run` returns the task-conditions clarify, add a real tool or force one" would have saved an hour.
+2. **Publish a first-class Gemini setup path** that does not rename the provider to `openai`. `openminion setup --list-providers` already mentions Gemini; the saved config should keep `provider_identity.service_vendor=gemini` in status output.
+3. **Put tool-result size and turn timeouts in the SDK README.** Both defaults are too tight for "fetch a page and extract JSON".
+4. **Do not count a clarify-as-assistant reply as a successful extract.** `run_state=completed` plus a canned question burned a Gemini call and looked like application error until we grepped the runtime.
+5. **Snapshot memory belonged in the application.** OpenMinion sessions are a poor store for "what did this URL look like yesterday" because reusing the session can trip task-context updates. A JSON file per URL is boring and correct.
+6. **Page fetch should not be left entirely to the model.** DoraHacks embeds a useful record (`timelineEnd`, `venueForm`, `mandatoryGitRepoLink`) that a 20-line parser can IST-convert before the LLM ever sees it. The model should interpret eligibility language, not arithmetic.
 
-### 6. Token overhead on a trivial turn
+## Bonus-report status
 
-The failed `ping` used about 10,824 tokens (`total_tokens_used` in metadata). Identity, memory, and task-update instructions are always in the overlay. A cheap model still pays that fixed cost, which matters on a free Gemini quota.
+The task-context failure looks like a real Gemini + entry-tool incompatibility, not a RulesMinion bug. We have not opened a GitHub issue or a fix PR — this repo is still private and local, and the hackathon bonus requires waiting for acknowledgement before a fix PR. If this project is published, the next step is to file the reproduction above against OpenMinion with version `0.1.20` and this environment note.
 
-### 7. Host quirks (not OpenMinion, but they affected the agent)
-
-- DoraHacks returns HTTP 405 “Human Verification” unless the User-Agent starts with `Mozilla/5.0`.
-- This environment’s DNS maps public names to `198.18.0.1`, so a naive “resolved IP must be global” SSRF check blocks every website. We now reject local/metadata *names* and IP literals, not proxied resolutions.
-- Devpost intermittently serves Cloudflare to `httpx` and the real page to `curl` with the same User-Agent. `fetch_page` falls back to curl when it sees a bot-check.
-
-## Actionable product feedback
-
-1. **If `forced_tools` is set, run that tool even when the entry `task_update` sidecar is missing or invalid.** Then ask for a corrected task update on the next model call. Today a validation error abandons the turn and the forced tool never happens.
-
-2. **Return the underlying `ValueError` (revision mismatch, quote not in user input, missing start objective) to the application**, at least in `result.metadata`. The canned sentence is friendly in a chat UI and opaque in an SDK. `reason_code` was `None` on the stored smoke-test outbound message even though the runtime used `invalid_task_context_update` internally.
-
-3. **Keep the documented compatibility rule:** a first text answer with no tools may omit `task_update`. We hit the opposite behaviour with Gemini. If the rule now depends on the provider producing an internal entry tool call, say so in the Python SDK examples.
-
-4. **Do not fire the freshness classifier on a turn that already has a live tool result or an explicit pasted digest** labelled as page content. Date extraction from a just-fetched page is the whole job of a rules watcher.
-
-5. **Document `agent_loop_tool_result_max_chars`** in the tool example and consider 16–32k as the default for READ_ONLY fetch tools.
-
-6. **Expose `result.output` JSON without the `openminion:` prefix**, or document that `result.text` is a console rendering. SDK callers want the model payload.
-
-7. **Publish the Hackathon #5 submission repository URL.** The official docs still say it “will be added before kickoff” (kickoff was 16 October 2026). Builders currently have a DoraHacks BUIDL form and no PR target.
-
-8. **Date-only timezone labels are ambiguous.** The docs say “December 18, 2026” Pacific Time; DoraHacks gives `2026-12-19T07:59:00.000Z`. RulesMinion prefers structured timestamps when the page has them. A page helper that always emits both the original string and a converted IST value (as our digest already does) should be part of the recommended research-agent starter.
-
-## Suggested fix for (1) and (2)
-
-I did not open an upstream issue or fix PR; the hackathon bonus path asks builders to wait for acknowledgement first. The smallest useful change is: when `forced_tools` is non-empty and `resolve_entry_task_update` raises, log the validation error, synthesize a verbatim `start` update from the user input (the already-implemented compatibility branch), and continue into the forced tool. I can file that as an issue with this write-up if you want it tracked upstream.
-
-## Security notes
-
-Findings above are functional, not security issues. Tool HTTP fetches refuse `localhost`, `*.internal`, metadata hosts, and private IP literals. Snapshots and `.env` are gitignored.
+No security issues found. API keys stay in `.env`; fetch refuses private networks.

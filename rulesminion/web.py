@@ -1,4 +1,4 @@
-"""Tiny local web UI so a check can be demoed without extra dependencies."""
+"""Tiny local web UI. No extra web framework — stdlib only."""
 
 from __future__ import annotations
 
@@ -10,168 +10,221 @@ from urllib.parse import parse_qs, urlparse
 from rulesminion.agent import check_url, format_exception
 from rulesminion.models import CheckResult
 
-PAGE = """<!DOCTYPE html>
+PAGE = """<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RulesMinion</title>
   <style>
-    :root { color-scheme: dark; --bg:#101114; --card:#1a1c21; --fg:#f2efe6; --muted:#a8a297; --line:#2c2f36; --ok:#8bd48b; --warn:#e6c36a; --bad:#e07a7a; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; background: var(--bg); color: var(--fg); }
-    main { max-width: 860px; margin: 0 auto; padding: 48px 20px 80px; }
-    h1 { font-size: 2rem; margin: 0 0 8px; letter-spacing: -0.03em; }
-    .lede { color: var(--muted); margin: 0 0 28px; line-height: 1.45; }
-    form { display: flex; gap: 10px; margin-bottom: 28px; }
-    input[type=url] { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; }
-    button { padding: 12px 18px; border: 0; border-radius: 10px; background: #f2efe6; color: #111; font: inherit; cursor: pointer; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; margin: 0 0 16px; }
-    .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
-    a { color: inherit; }
-    .muted { color: var(--muted); }
-    .yes { color: var(--ok); } .no { color: var(--bad); } .unclear { color: var(--warn); }
-    ol { margin: 0; padding-left: 1.2em; }
-    li { margin: 0 0 6px; }
-    table { width: 100%; border-collapse: collapse; }
-    td, th { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
-    .error { color: var(--bad); }
+    :root {{
+      --bg: #12110f;
+      --card: #1c1a17;
+      --fg: #f3ead8;
+      --muted: #b5aa94;
+      --line: #3a342c;
+      --accent: #e0b144;
+    }}
+    body {{
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      background: var(--bg);
+      color: var(--fg);
+    }}
+    main {{ max-width: 820px; margin: 48px auto; padding: 0 20px 80px; }}
+    h1 {{ font-size: 2.1rem; letter-spacing: -0.03em; margin: 0 0 8px; }}
+    p.lead {{ color: var(--muted); margin-top: 0; }}
+    form {{ display: flex; gap: 8px; margin: 24px 0 32px; }}
+    input[type=url] {{
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--fg);
+      font-size: 1rem;
+    }}
+    button {{
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #1a1406;
+      font-weight: 700;
+      cursor: pointer;
+    }}
+    section {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin: 16px 0;
+    }}
+    h2 {{ margin: 0 0 10px; font-size: 1.15rem; }}
+    .muted {{ color: var(--muted); }}
+    .yes {{ color: #8fce7a; font-weight: 700; }}
+    .no {{ color: #ee7a6b; font-weight: 700; }}
+    .unclear {{ color: var(--accent); font-weight: 700; }}
+    ol {{ margin: 0; padding-left: 1.2rem; }}
+    li {{ margin: 6px 0; }}
+    .error {{ color: #ee7a6b; }}
+    code {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }}
   </style>
 </head>
 <body>
-  <main>
-    <h1>RulesMinion</h1>
-    <p class="lede">Paste a hackathon URL. The OpenMinion agent reads the page, extracts the prize, IST deadlines, India eligibility and submission checklist, then stores a snapshot and reports what changed.</p>
-    <form method="post" action="/">
-      <input type="url" name="url" required placeholder="https://dorahacks.io/hackathon/2418/detail" value="{url}">
-      <button type="submit">Check</button>
-    </form>
-    {body}
-  </main>
+<main>
+  <h1>RulesMinion</h1>
+  <p class="lead">Paste a hackathon URL. The OpenMinion agent reads the page, extracts the prize, IST deadlines, India eligibility and the submission checklist, then diffs it against the last snapshot. A run usually takes about a minute.</p>
+  <form method="post" action="/">
+    <input type="url" name="url" placeholder="https://dorahacks.io/hackathon/2418/detail" value="{url}" required>
+    <button type="submit">Check</button>
+  </form>
+  {body}
+</main>
 </body>
 </html>
 """
 
 
-def serve(host: str = "127.0.0.1", port: int = 8066) -> None:
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, format: str, *args) -> None:  # noqa: A003
-            sys_stderr_write = __import__("sys").stderr.write
-            sys_stderr_write("%s - %s\n" % (self.address_string(), format % args))
-
-        def do_GET(self) -> None:  # noqa: N802
-            parsed = urlparse(self.path)
-            if parsed.path == "/health":
-                self._send(200, b"ok\n", "text/plain")
-                return
-            if parsed.path == "/api/check":
-                url = (parse_qs(parsed.query).get("url") or [""])[0]
-                self._json_check(url)
-                return
-            self._send(200, PAGE.format(url="", body="").encode(), "text/html")
-
-        def do_POST(self) -> None:  # noqa: N802
-            parsed = urlparse(self.path)
-            length = int(self.headers.get("Content-Length") or 0)
-            raw = self.rfile.read(length).decode("utf-8")
-            if parsed.path == "/api/check":
-                try:
-                    payload = json.loads(raw) if raw.strip().startswith("{") else parse_qs(raw)
-                    url = payload.get("url") if isinstance(payload, dict) else ""
-                    if isinstance(url, list):
-                        url = url[0] if url else ""
-                except json.JSONDecodeError:
-                    url = (parse_qs(raw).get("url") or [""])[0]
-                self._json_check(str(url or ""))
-                return
-            url = (parse_qs(raw).get("url") or [""])[0]
-            try:
-                result = check_url(url)
-                body = _render_html_result(result)
-                status = 200
-            except Exception as exc:
-                body = f'<div class="card error">{html.escape(format_exception(exc))}</div>'
-                status = 200
-            self._send(status, PAGE.format(url=html.escape(url), body=body).encode(), "text/html")
-
-        def _json_check(self, url: str) -> None:
-            try:
-                result = check_url(url)
-                self._send(200, result.model_dump_json(indent=2).encode() + b"\n", "application/json")
-            except Exception as exc:
-                payload = json.dumps({"error": format_exception(exc)}).encode()
-                self._send(400, payload, "application/json")
-
-        def _send(self, status: int, body: bytes, content_type: str) -> None:
-            self.send_response(status)
-            self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-    server = ThreadingHTTPServer((host, port), Handler)
-    print(f"RulesMinion UI on http://{host}:{port}", flush=True)
-    server.serve_forever()
+def render_page(url: str = "", body: str = "") -> bytes:
+    return PAGE.format(url=html.escape(url), body=body).encode("utf-8")
 
 
-def _render_html_result(result: CheckResult) -> str:
+def render_result_html(result: CheckResult) -> str:
     brief = result.brief
-    prize_rows = ""
+    india_class = {"yes": "yes", "no": "no"}.get(brief.india_eligible, "unclear")
+    prizes = ""
     if brief.prize_pool:
-        prize_rows += f"<tr><th>Pool</th><td>{html.escape(brief.prize_pool)}</td><td></td></tr>"
-    for item in brief.prizes:
-        prize_rows += (
-            f"<tr><td>{html.escape(item.place or '—')}</td>"
-            f"<td>{html.escape(item.amount or '—')}</td>"
-            f"<td>{html.escape(item.notes or '')}</td></tr>"
-        )
-    deadline_rows = ""
-    for item in brief.deadlines:
-        stated = item.as_stated
-        if item.timezone_as_stated:
-            stated += f" ({item.timezone_as_stated})"
-        deadline_rows += (
-            f"<tr><td>{html.escape(item.label)}</td>"
-            f"<td>{html.escape(stated)}</td>"
-            f"<td>{html.escape(item.ist or '—')}</td></tr>"
-        )
-    checks = "".join(f"<li>{html.escape(item)}</li>" for item in brief.submission_checklist) or "<li>None extracted</li>"
-    change_bits = [f"<p><strong>{html.escape(result.changes.status)}</strong> — {html.escape(result.changes.summary)}</p>"]
+        prizes += f"<p><strong>Pool:</strong> {html.escape(brief.prize_pool)}</p>"
+    if brief.prizes:
+        prizes += "<ul>" + "".join(
+            f"<li>{html.escape(item.place + ': ' if item.place else '')}"
+            f"{html.escape(item.amount)}"
+            f"{html.escape(' — ' + item.notes if item.notes else '')}</li>"
+            for item in brief.prizes
+        ) + "</ul>"
+    if not prizes:
+        prizes = "<p class='muted'>No prize details extracted.</p>"
+
+    if brief.deadlines:
+        deadlines = "<ul>" + "".join(
+            f"<li><strong>{html.escape(item.label)}</strong>: "
+            f"{html.escape(item.as_stated)}"
+            f"{html.escape(' (' + item.timezone_as_stated + ')' if item.timezone_as_stated else '')}"
+            f" → <code>{html.escape(item.ist or '—')}</code></li>"
+            for item in brief.deadlines
+        ) + "</ul>"
+    else:
+        deadlines = "<p class='muted'>No deadlines extracted.</p>"
+
+    if brief.submission_checklist:
+        checklist = "<ol>" + "".join(
+            f"<li>{html.escape(item)}</li>" for item in brief.submission_checklist
+        ) + "</ol>"
+    else:
+        checklist = "<p class='muted'>No checklist items extracted.</p>"
+
+    changes = f"<p><strong>{html.escape(result.changes.status)}</strong> — {html.escape(result.changes.summary)}</p>"
     for item in result.changes.changed:
-        change_bits.append(f"<p>~ {html.escape(item.path)}: {html.escape(item.before or '')} → {html.escape(item.after or '')}</p>")
+        changes += f"<p>~ {html.escape(item.path)}: {html.escape(item.before or '')} → {html.escape(item.after or '')}</p>"
     for item in result.changes.added:
-        change_bits.append(f"<p>+ {html.escape(item)}</p>")
+        changes += f"<p>+ {html.escape(item)}</p>"
     for item in result.changes.removed:
-        change_bits.append(f"<p>- {html.escape(item)}</p>")
+        changes += f"<p>- {html.escape(item)}</p>"
+
     return f"""
-    <article class="card">
+    <section>
       <h2>{html.escape(brief.title)}</h2>
-      <p><a href="{html.escape(brief.url)}">{html.escape(brief.url)}</a></p>
-      <p class="muted">{html.escape(brief.organizer or '')} {html.escape(brief.format or '')}</p>
-    </article>
-    <article class="card">
-      <h2>Prizes</h2>
-      <table>{prize_rows or '<tr><td>not stated</td></tr>'}</table>
-    </article>
-    <article class="card">
-      <h2>Deadlines in IST</h2>
-      <table>{deadline_rows or '<tr><td>not stated</td></tr>'}</table>
-    </article>
-    <article class="card">
+      <p class="muted">{html.escape(brief.url)}<br>
+      {html.escape(brief.organizer)} · {html.escape(brief.format)}</p>
+    </section>
+    <section><h2>Prizes</h2>{prizes}</section>
+    <section><h2>Deadlines (IST)</h2>{deadlines}</section>
+    <section>
       <h2>Eligibility</h2>
-      <p>India eligible: <strong class="{html.escape(brief.india_eligible)}">{html.escape(brief.india_eligible)}</strong></p>
+      <p>India eligible: <span class="{india_class}">{html.escape(brief.india_eligible)}</span></p>
       <p>{html.escape(brief.eligibility_summary)}</p>
       <p class="muted">{html.escape(brief.eligibility_evidence)}</p>
-    </article>
-    <article class="card">
-      <h2>Submission checklist</h2>
-      <ol>{checks}</ol>
-    </article>
-    <article class="card">
-      <h2>Since last check</h2>
-      {''.join(change_bits)}
-    </article>
-    <article class="card muted">
-      <p>Checked {html.escape(result.checked_at_ist)} · snapshot {html.escape(result.snapshot_id)} · {html.escape(result.extractor)}</p>
-    </article>
+    </section>
+    <section><h2>Submission checklist</h2>{checklist}</section>
+    <section><h2>Since last check</h2>{changes}</section>
+    <section>
+      <h2>Run</h2>
+      <p class="muted">Checked {html.escape(result.checked_at_ist)} · snapshot {html.escape(result.snapshot_id)} · extractor {html.escape(result.extractor)}</p>
+    </section>
     """
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        sys_stderr = __import__("sys").stderr
+        sys_stderr.write("%s - %s\n" % (self.address_string(), format % args))
+
+    def _send(self, status: int, body: bytes, content_type: str = "text/html; charset=utf-8") -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path == "/health":
+            self._send(200, b"ok\n", "text/plain; charset=utf-8")
+            return
+        if parsed.path == "/api/check":
+            query = parse_qs(parsed.query)
+            url = (query.get("url") or [""])[0].strip()
+            self._api_check(url)
+            return
+        if parsed.path != "/":
+            self._send(404, render_page(body="<p class='error'>Not found.</p>"))
+            return
+        self._send(200, render_page())
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length).decode("utf-8") if length else ""
+        if parsed.path == "/api/check":
+            try:
+                payload = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                payload = parse_qs(raw)
+            url = str((payload.get("url") if isinstance(payload, dict) else "") or "")
+            if isinstance(url, list):
+                url = url[0] if url else ""
+            self._api_check(url.strip())
+            return
+        form = parse_qs(raw)
+        url = (form.get("url") or [""])[0].strip()
+        try:
+            result = check_url(url)
+            body = render_result_html(result)
+            self._send(200, render_page(url, body))
+        except Exception as exc:
+            body = f"<p class='error'>{html.escape(format_exception(exc))}</p>"
+            self._send(200, render_page(url, body))
+
+    def _api_check(self, url: str) -> None:
+        if not url:
+            payload = {"error": "url is required"}
+            self._send(400, json.dumps(payload).encode(), "application/json")
+            return
+        try:
+            result = check_url(url)
+        except Exception as exc:
+            payload = {"error": format_exception(exc)}
+            self._send(400, json.dumps(payload).encode(), "application/json")
+            return
+        self._send(200, result.model_dump_json(indent=2).encode(), "application/json")
+
+
+def serve(host: str = "127.0.0.1", port: int = 8066) -> None:
+    server = ThreadingHTTPServer((host, port), Handler)
+    print(f"RulesMinion UI on http://{host}:{port}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopped.", flush=True)
+        server.server_close()

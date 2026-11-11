@@ -1,0 +1,81 @@
+{
+  "brief": {
+    "title": "Learn AR with SPECS",
+    "url": "https://learn-specs.devpost.com/",
+    "organizer": "Devpost",
+    "format": "online",
+    "prize_pool": "$2,500 in cash",
+    "prizes": [
+      {
+        "place": "First Place",
+        "amount": "$1,250",
+        "notes": "1 winner + feature in Devpost newsletter and socials"
+      },
+      {
+        "place": "Second Place",
+        "amount": "$750",
+        "notes": "1 winner + feature in Devpost newsletter and socials"
+      },
+      {
+        "place": "Third Place",
+        "amount": "$500",
+        "notes": "1 winner + feature in Devpost newsletter and socials"
+      }
+    ],
+    "deadlines": [
+      {
+        "label": "Submission Deadline",
+        "as_stated": "December 07, 2026 @ 5:00pm EST",
+        "timezone_as_stated": "EST",
+        "ist": "2026-12-08 03:30 IST",
+        "confidence": "high"
+      }
+    ],
+    "india_eligible": "yes",
+    "eligibility_summary": "Open to individuals above the legal age of majority in their country of residence. All countries/territories are eligible, excluding standard exceptions.",
+    "eligibility_evidence": "All countries/territories, excluding standard exceptions. Above legal age of majority in country of residence.",
+    "submission_checklist": [
+      "A demo video (public on YouTube, under 3 minutes) showing the Lens working in Lens Studio preview.",
+      "A repository (GitHub, GitLab, or Bitbucket) containing the Lens Studio project files and the devpost/ folder in the root with your planning document.",
+      "A short description explaining what your Lens does, who it's for, and what you learned."
+    ],
+    "notes": [
+      "This is Round 2 of Learn AR with SPECS.",
+      "No SPECS glasses are required; everything runs in Lens Studio's preview on your laptop.",
+      "Projects must be planned with the Devpost Learn skill pack and built with CLAD in Lens Studio."
+    ]
+  },
+  "changes": {
+    "status": "changed",
+    "previous_checked_at_ist": "2026-11-11 22:07 IST",
+    "added": [
+      "prizes: place=First Place | amount=$1,250 | notes=1 winner + feature in Devpost newsletter and socials",
+      "prizes: place=Second Place | amount=$750 | notes=1 winner + feature in Devpost newsletter and socials",
+      "prizes: place=Third Place | amount=$500 | notes=1 winner + feature in Devpost newsletter and socials",
+      "submission_checklist: A demo video (public on YouTube, under 3 minutes) showing the Lens working in Lens Studio preview.",
+      "submission_checklist: A repository (GitHub, GitLab, or Bitbucket) containing the Lens Studio project files and the devpost/ folder in the root with your planning document."
+    ],
+    "removed": [
+      "prizes: place=First Place | amount=$1,250 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "prizes: place=Second Place | amount=$750 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "prizes: place=Third Place | amount=$500 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "submission_checklist: A demo video (public on YouTube, under 3 minutes) showing your Lens working in the Lens Studio preview.",
+      "submission_checklist: A repository on GitHub, GitLab, or Bitbucket (public or private; if private, shared with specified emails before the deadline) including Lens Studio project files and the devpost/ planning folder."
+    ],
+    "changed": [
+      {
+        "path": "eligibility_summary",
+        "before": "Open to participants who are above the legal age of majority in their country of residence, across all countries/territories excluding standard exceptions.",
+        "after": "Open to individuals above the legal age of majority in their country of residence. All countries/territories are eligible, excluding standard exceptions."
+      }
+    ],
+    "summary": "1 field(s) changed; 5 item(s) added; 5 item(s) removed."
+  },
+  "snapshot_id": "3320f3fff5b3dd9a-003-2026-11-11_2213_IST",
+  "checked_at_ist": "2026-11-11 22:13 IST",
+  "extractor": "openminion",
+  "session_id": "rulesminion-3320f3fff5b3dd9a-1794415413",
+  "elapsed_ms": 12055,
+  "page_title": "",
+  "warnings": []
+}

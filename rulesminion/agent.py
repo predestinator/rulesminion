@@ -200,6 +200,13 @@ def _extract_brief(
         return repair_brief(raw2, target), "openminion-json-retry"
 
 
+def _is_rate_limit(exc: BaseException) -> bool:
+    code = str(getattr(exc, "code", "") or "")
+    message = str(getattr(exc, "message", "") or exc)
+    blob = f"{code} {message}".lower()
+    return "rate_limit" in blob or "rate limited" in blob or "429" in blob or "quota" in blob
+
+
 def _run_agent(
     prompt: str,
     *,
@@ -208,28 +215,40 @@ def _run_agent(
     tools: list,
     forced_tools: list[str],
 ) -> str:
-    try:
-        with Agent(
-            config_path=str(AGENTS_JSON),
-            agent_id="openminion",
-            instructions=instructions,
-            tools=tools,
-            forced_tools=forced_tools,
-            session_id=session_id,
-        ) as agent:
-            result = agent.run(
-                prompt,
-                timeout_seconds=180,
-                approval_callback=allow_rulesminion_tools,
-            )
-    except AgentOutputValidationError as exc:
-        return getattr(exc, "raw_text", "") or str(exc)
+    last_error: BaseException | None = None
+    for attempt in range(4):
+        try:
+            with Agent(
+                config_path=str(AGENTS_JSON),
+                agent_id="openminion",
+                instructions=instructions,
+                tools=tools,
+                forced_tools=forced_tools,
+                session_id=session_id if attempt == 0 else f"{session_id}-retry{attempt}",
+            ) as agent:
+                result = agent.run(
+                    prompt,
+                    timeout_seconds=180,
+                    approval_callback=allow_rulesminion_tools,
+                )
+        except AgentOutputValidationError as exc:
+            return getattr(exc, "raw_text", "") or str(exc)
+        except ProviderError as exc:
+            last_error = exc
+            if _is_rate_limit(exc) and attempt < 3:
+                wait = 20 * (attempt + 1)
+                print(f"Provider rate-limited; retrying in {wait}s...", flush=True)
+                time.sleep(wait)
+                continue
+            raise
 
-    text = result.text or ""
-    tool_calls = (result.metadata or {}).get("tool_calls_count")
-    elapsed = (result.metadata or {}).get("elapsed_ms")
-    print(f"Agent finished: session={result.session_id} tools={tool_calls} elapsed_ms={elapsed}", flush=True)
-    return text
+        text = result.text or ""
+        tool_calls = (result.metadata or {}).get("tool_calls_count")
+        elapsed = (result.metadata or {}).get("elapsed_ms")
+        print(f"Agent finished: session={result.session_id} tools={tool_calls} elapsed_ms={elapsed}", flush=True)
+        return text
+    assert last_error is not None
+    raise last_error
 
 
 def repair_brief(raw_text: str, fallback_url: str) -> HackathonBrief:
