@@ -1,0 +1,83 @@
+{
+  "brief": {
+    "title": "Cortensor Hackathon #5",
+    "url": "https://dorahacks.io/hackathon/2418/detail",
+    "organizer": "Cortensor",
+    "format": "Virtual",
+    "prize_pool": "1,150 USD",
+    "prizes": [
+      {
+        "place": "1st place",
+        "amount": "$500 total ($250 liquid $COR upfront; $250 in a one-month staking lock)",
+        "notes": "50% upfront, 50% in a 1-month staking pool lock"
+      },
+      {
+        "place": "2nd place",
+        "amount": "$300 total ($150 liquid $COR upfront; $150 in a one-month staking lock)",
+        "notes": "50% upfront, 50% in a 1-month staking pool lock"
+      },
+      {
+        "place": "3rd place",
+        "amount": "$200 total ($100 liquid $COR upfront; $100 in a one-month staking lock)",
+        "notes": "50% upfront, 50% in a 1-month staking lock"
+      },
+      {
+        "place": "4th place",
+        "amount": "$100 total ($50 liquid $COR upfront; $50 in a one-month staking lock)",
+        "notes": "50% upfront, 50% in a 1-month staking lock"
+      },
+      {
+        "place": "5th place",
+        "amount": "$50 total ($25 liquid $COR upfront; $25 in a one-month staking lock)",
+        "notes": "50% upfront, 50% in a 1-month staking lock"
+      }
+    ],
+    "deadlines": [
+      {
+        "label": "Kickoff",
+        "as_stated": "2026-10-16 07:00 PT",
+        "timezone_as_stated": "PT",
+        "ist": "2026-10-16 12:30 IST",
+        "confidence": "1.0"
+      },
+      {
+        "label": "Submission Deadline",
+        "as_stated": "2026-12-19 07:59 UTC",
+        "timezone_as_stated": "UTC",
+        "ist": "2026-12-19 13:29 IST",
+        "confidence": "1.0"
+      }
+    ],
+    "india_eligible": "yes",
+    "eligibility_summary": "This is a virtual online hackathon open globally, allowing participants from India and elsewhere to participate.",
+    "eligibility_evidence": "The event attendance mode is Virtual / OnlineEventAttendanceMode with no geographic restrictions stated.",
+    "submission_checklist": [
+      "A public source repository and README with setup and run instructions.",
+      "A short explanation of the OpenMinion SDK workflow.",
+      "One working example and a 1\u20135 minute demo video.",
+      "A Building Blocks Tested note detailing what was used, what worked, and what did not.",
+      "A What We Learned note with actionable product feedback."
+    ],
+    "notes": [
+      "Build a small, working agent with the OpenMinion 0.1 Python SDK.",
+      "Prizes are stated in USD value and paid in $COR equivalent."
+    ]
+  },
+  "changes": {
+    "status": "first_seen",
+    "previous_checked_at_ist": null,
+    "added": [],
+    "removed": [],
+    "changed": [],
+    "summary": "First snapshot stored for this URL."
+  },
+  "snapshot_id": "30d5de984dfae999-001-2026-11-11_2201_IST",
+  "checked_at_ist": "2026-11-11 22:01 IST",
+  "extractor": "openminion-digest-fallback",
+  "session_id": "rulesminion-30d5de984dfae999-1794414661",
+  "elapsed_ms": 39435,
+  "page_title": "",
+  "warnings": [
+    "Primary OpenMinion turn did not return JSON (task-context update failed or the model answered in prose). Retrying with a pre-fetched digest."
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "brief": {
+    "title": "Learn AR with SPECS",
+    "url": "https://learn-specs.devpost.com/",
+    "organizer": "Devpost",
+    "format": "online",
+    "prize_pool": "$2,500 in cash",
+    "prizes": [
+      {
+        "place": "First Place",
+        "amount": "$1,250",
+        "notes": "1 winner + feature in Devpost newsletter and socials + badge + Discord role"
+      },
+      {
+        "place": "Second Place",
+        "amount": "$750",
+        "notes": "1 winner + feature in Devpost newsletter and socials + badge + Discord role"
+      },
+      {
+        "place": "Third Place",
+        "amount": "$500",
+        "notes": "1 winner + feature in Devpost newsletter and socials + badge + Discord role"
+      }
+    ],
+    "deadlines": [
+      {
+        "label": "Submission Deadline",
+        "as_stated": "December 07, 2026 @ 5:00pm EST",
+        "timezone_as_stated": "EST",
+        "ist": "2026-12-08 03:30 IST",
+        "confidence": "high"
+      }
+    ],
+    "india_eligible": "yes",
+    "eligibility_summary": "Open to participants who are above the legal age of majority in their country of residence, across all countries/territories excluding standard exceptions.",
+    "eligibility_evidence": "All countries/territories, excluding standard exceptions. Above legal age of majority in country of residence.",
+    "submission_checklist": [
+      "A demo video (public on YouTube, under 3 minutes) showing your Lens working in the Lens Studio preview.",
+      "A repository on GitHub, GitLab, or Bitbucket (public or private; if private, shared with specified emails before the deadline) including Lens Studio project files and the devpost/ planning folder.",
+      "A short description explaining what your Lens does, who it's for, and what you learned."
+    ],
+    "notes": [
+      "This is Round 2 of Learn AR with SPECS.",
+      "No SPECS glasses are required; everything runs in Lens Studio's preview on your laptop.",
+      "Projects must be planned with the Devpost Learn skill pack and built with CLAD in Lens Studio."
+    ]
+  },
+  "changes": {
+    "status": "changed",
+    "previous_checked_at_ist": "2026-11-11 22:04 IST",
+    "added": [
+      "prizes: place=First Place | amount=$1,250 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "prizes: place=Second Place | amount=$750 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "prizes: place=Third Place | amount=$500 | notes=1 winner + feature in Devpost newsletter and socials + badge + Discord role",
+      "deadlines: label=Submission Deadline | as_stated=December 07, 2026 @ 5:00pm EST | timezone_as_stated=EST | ist=2026-12-08 03:30 IST",
+      "submission_checklist: A demo video (public on YouTube, under 3 minutes) showing your Lens working in the Lens Studio preview.",
+      "submission_checklist: A repository on GitHub, GitLab, or Bitbucket (public or private; if private, shared with specified emails before the deadline) including Lens Studio project files and the devpost/ planning folder.",
+      "submission_checklist: A short description explaining what your Lens does, who it's for, and what you learned."
+    ],
+    "removed": [],
+    "changed": [
+      {
+        "path": "title",
+        "before": "Learn Specs Hackathon",
+        "after": "Learn AR with SPECS"
+      },
+      {
+        "path": "prize_pool",
+        "before": "Unclear",
+        "after": "$2,500 in cash"
+      },
+      {
+        "path": "india_eligible",
+        "before": "unclear",
+        "after": "yes"
+      },
+      {
+        "path": "eligibility_summary",
+        "before": "The page currently shows a Cloudflare challenge ('Just a moment...'), so complete eligibility details could not be extracted.",
+        "after": "Open to participants who are above the legal age of majority in their country of residence, across all countries/territories excluding standard exceptions."
+      }
+    ],
+    "summary": "4 field(s) changed; 7 item(s) added."
+  },
+  "snapshot_id": "3320f3fff5b3dd9a-002-2026-11-11_2207_IST",
+  "checked_at_ist": "2026-11-11 22:07 IST",
+  "extractor": "openminion",
+  "session_id": "rulesminion-3320f3fff5b3dd9a-1794415060",
+  "elapsed_ms": 13216,
+  "page_title": "",
+  "warnings": []
+}
